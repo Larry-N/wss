@@ -50,6 +50,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <fcntl.h>
+#include <signal.h>
 
 // see Documentation/vm/pagemap.txt:
 #define PFN_MASK		(~(0x1ffLLU << 55))
@@ -73,9 +74,10 @@
 #endif
 
 // globals
-int g_debug = 0;		// 1 == some, 2 == verbose
+int g_debug = 1;		// 1 == some, 2 == more, 3 == maximum
 int g_activepages = 0;
 int g_walkedpages = 0;
+int print_virtual_address = 0;
 char *g_idlepath = "/sys/kernel/mm/page_idle/bitmap";
 unsigned long long *g_idlebuf;
 unsigned long long g_idlebufsize;
@@ -135,7 +137,8 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 		err = 1;
 		goto out;
 	}
-
+// mapstart + (pagebufsize / sizeof (unsigned long long) )* i = should be virtual mem address - no 
+// pagebufsize / sizeof (unsigned long long) = number of <chunks> each of them is mapped to virtual memory 'page'
 	for (i = 0; i < pagebufsize / sizeof (unsigned long long); i++) {
 		// convert virtual address p to physical PFN
 		pfn = p[i] & PFN_MASK;
@@ -150,13 +153,16 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 			goto out;
 		}
 		idlebits = g_idlebuf[idlemapp];
-		if (g_debug > 1) {
+		if (g_debug > 2) {
 			printf("R: p %llx pfn %llx idlebits %llx\n",
 			    p[i], pfn, idlebits);
 		}
 
 		if (!(idlebits & (1ULL << (pfn % 64)))) {
 			g_activepages++;
+			if (print_virtual_address) {
+				printf("%llx\n", mapstart + i*pagesize);
+			}
 		}
 		g_walkedpages++;
 	}
@@ -187,7 +193,7 @@ int walkmaps(pid_t pid)
 
 	while (fgets(line, sizeof (line), mapsfile) != NULL) {
 		sscanf(line, "%llx-%llx", &mapstart, &mapend);
-		if (g_debug)
+		if (g_debug > 2)
 			printf("MAP %llx-%llx\n", mapstart, mapend);
 		if (mapstart > PAGE_OFFSET)
 			continue;	// page idle tracking is user mem only
@@ -253,6 +259,13 @@ int loadidlemap()
 	return 0;
 }
 
+
+void signal_handler(int signum) {
+    if (signum == SIGUSR1) {
+		if (g_debug > 1) printf("[WSS] Signal SIGUSR1 arrived! Lets count the pages!\n");
+    }
+}
+
 int main(int argc, char *argv[])
 {
 	pid_t pid;
@@ -262,25 +275,38 @@ int main(int argc, char *argv[])
 
 	// options
 	if (argc < 3) {
-		printf("USAGE: wss PID duration(s)\n");
+		printf("USAGE: wss PID duration(s) return_virt_address(y optional)\n");
 		exit(0);
 	}	
 	pid = atoi(argv[1]);
 	duration = atof(argv[2]);
-	if (duration < 0.01) {
+	if (argc == 4) {
+		print_virtual_address = 1;
+	}
+	if (duration == 0.0) {
+		printf("Watching PID %d page references untill SIGUSR1 signal arrives.\n",
+			pid);
+	} else if (duration < 0.01) {
 		printf("Interval too short. Exiting.\n");
 		return 1;
+	} else {
+		printf("Watching PID %d page references during %.2f seconds...\n",
+			pid, duration);
 	}
-	printf("Watching PID %d page references during %.2f seconds...\n",
-	    pid, duration);
-
 	// set idle flags
 	gettimeofday(&ts1, NULL);
 	setidlemap();
 
 	// sleep
 	gettimeofday(&ts2, NULL);
-	usleep((int)(duration * 1000000));
+	if (duration == 0){
+	// set up signal handler and wait for it 
+		signal(SIGUSR1, signal_handler);
+		pause();
+	} else {
+		usleep((int)(duration * 1000000));
+	}
+
 	gettimeofday(&ts3, NULL);
 
 	// read idle flags
@@ -298,22 +324,27 @@ int main(int argc, char *argv[])
 	dur_us = 1000000 * (ts4.tv_sec - ts1.tv_sec) +
 	    (ts4.tv_usec - ts1.tv_usec);
 	est_us = dur_us - (set_us / 2) - (read_us / 2);
-	if (g_debug) {
-		printf("set time  : %.3f s\n", (double)set_us / 1000000);
-		printf("sleep time: %.3f s\n", (double)slp_us / 1000000);
-		printf("read time : %.3f s\n", (double)read_us / 1000000);
-		printf("dur time  : %.3f s\n", (double)dur_us / 1000000);
+	if (! print_virtual_address) {
+		if (g_debug) {
+			if (g_debug > 1) {
+				printf("set time  : %.3f s\n", (double)set_us / 1000000);
+				printf("sleep time: %.3f s\n", (double)slp_us / 1000000);
+				printf("read time : %.3f s\n", (double)read_us / 1000000);
+			}
+			printf("dur time  : %.3f s\n", (double)dur_us / 1000000);
+			// assume getpagesize() sized pages:
+			printf("referenced: %d pages, %d Kbytes\n", g_activepages,
+			    g_activepages * getpagesize());
+			if (g_debug > 1) {
+			printf("walked    : %d pages, %d Kbytes\n", g_walkedpages,
+			    g_walkedpages * getpagesize());
+			}
+		}
+
 		// assume getpagesize() sized pages:
-		printf("referenced: %d pages, %d Kbytes\n", g_activepages,
-		    g_activepages * getpagesize());
-		printf("walked    : %d pages, %d Kbytes\n", g_walkedpages,
-		    g_walkedpages * getpagesize());
+		mbytes = (g_activepages * getpagesize()) / (1024 * 1024);
+		printf("%-7s %10s\n", "Est(s)", "Ref(MB)");
+		printf("%-7.3f %10.2f", (double)est_us / 1000000, mbytes);
 	}
-
-	// assume getpagesize() sized pages:
-	mbytes = (g_activepages * getpagesize()) / (1024 * 1024);
-	printf("%-7s %10s\n", "Est(s)", "Ref(MB)");
-	printf("%-7.3f %10.2f", (double)est_us / 1000000, mbytes);
-
 	return 0;
 }
