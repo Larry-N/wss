@@ -314,17 +314,17 @@ int main(int argc, char *argv[])
 	walkmaps(pid);
 	gettimeofday(&ts4, NULL);
 
-	// calculate times
-	set_us = 1000000 * (ts2.tv_sec - ts1.tv_sec) +
-	    (ts2.tv_usec - ts1.tv_usec);
-	slp_us = 1000000 * (ts3.tv_sec - ts2.tv_sec) +
-	    (ts3.tv_usec - ts2.tv_usec);
-	read_us = 1000000 * (ts4.tv_sec - ts3.tv_sec) +
-	    (ts4.tv_usec - ts3.tv_usec);
-	dur_us = 1000000 * (ts4.tv_sec - ts1.tv_sec) +
-	    (ts4.tv_usec - ts1.tv_usec);
-	est_us = dur_us - (set_us / 2) - (read_us / 2);
 	if (! print_virtual_address) {
+		// calculate times
+		set_us = 1000000 * (ts2.tv_sec - ts1.tv_sec) +
+		    (ts2.tv_usec - ts1.tv_usec);
+		slp_us = 1000000 * (ts3.tv_sec - ts2.tv_sec) +
+		    (ts3.tv_usec - ts2.tv_usec);
+		read_us = 1000000 * (ts4.tv_sec - ts3.tv_sec) +
+		    (ts4.tv_usec - ts3.tv_usec);
+		dur_us = 1000000 * (ts4.tv_sec - ts1.tv_sec) +
+		    (ts4.tv_usec - ts1.tv_usec);
+		est_us = dur_us - (set_us / 2) - (read_us / 2);
 		if (g_debug) {
 			if (g_debug > 1) {
 				printf("set time  : %.3f s\n", (double)set_us / 1000000);
@@ -340,7 +340,6 @@ int main(int argc, char *argv[])
 			    g_walkedpages * getpagesize());
 			}
 		}
-
 		// assume getpagesize() sized pages:
 		mbytes = (g_activepages * getpagesize()) / (1024 * 1024);
 		printf("%-7s %10s\n", "Est(s)", "Ref(MB)");
