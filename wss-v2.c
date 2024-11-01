@@ -48,6 +48,7 @@
 #include <sys/user.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/sysinfo.h>
 #include <sys/time.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -208,15 +209,53 @@ int walkmaps(pid_t pid)
 	return 0;
 }
 
+char* create_and_initialize_bitmap() {
+    // Get total physical memory in bytes
+    struct sysinfo info;
+    if (sysinfo(&info) != 0) {
+        perror("sysinfo");
+        return NULL;
+    }
+    unsigned long total_memory = info.totalram;
+
+    // Get the page size
+    long page_size = sysconf(_SC_PAGESIZE);
+    if (page_size == -1) {
+        perror("sysconf");
+        return NULL;
+    }
+
+    // Calculate the number of physical pages
+    unsigned long num_physical_pages = total_memory / page_size;
+
+    // Calculate the size of the bitmap array (1 bit per page, so divide by 8 for bytes)
+    unsigned long bitmap_size = (num_physical_pages + 7) / 8; // Round up for non-multiples of 8
+
+    // Use mmap to allocate memory and initialize it to 0xFF
+    char *bitmap = mmap(NULL, bitmap_size, PROT_READ | PROT_WRITE,
+                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    if (bitmap == MAP_FAILED) {
+        perror("mmap");
+        return NULL;
+    }
+
+    // Initialize the bitmap to 0xFF
+    memset(bitmap, 0xFF, bitmap_size);
+
+    printf("Total memory: %lu bytes\n", total_memory);
+    printf("Page size: %ld bytes\n", page_size);
+    printf("Number of physical pages: %lu\n", num_physical_pages);
+    printf("Bitmap size: %lu bytes\n", bitmap_size);
+
+    return bitmap;
+}
+
 int setidlemap()
 {
 	char *p;
 	int idlefd, i;
 	// optimized: large writes allowed here:
-	char buf[IDLEMAP_BUF_SIZE];
-
-	for (i = 0; i < sizeof (buf); i++)
-		buf[i] = 0xff;
+	char *buf = create_and_initialize_bitmap();
 
 	// set entire idlemap flags
 	if ((idlefd = open(g_idlepath, O_WRONLY)) < 0) {
