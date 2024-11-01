@@ -270,7 +270,7 @@ int main(int argc, char *argv[])
 {
 	pid_t pid;
 	double duration, mbytes;
-	static struct timeval ts1, ts2, ts3, ts4;
+	static struct timeval ts1, ts2, ts3, ts4, tsa, tsb;
 	unsigned long long set_us, read_us, dur_us, slp_us, est_us;
 
 	// options
@@ -307,10 +307,11 @@ int main(int argc, char *argv[])
 		usleep((int)(duration * 1000000));
 	}
 
-	gettimeofday(&ts3, NULL);
-
 	// read idle flags
+	gettimeofday(&tsa, NULL);
 	loadidlemap();
+	gettimeofday(&tsb, NULL);
+	gettimeofday(&ts3, NULL);
 	walkmaps(pid);
 	gettimeofday(&ts4, NULL);
 
@@ -320,6 +321,8 @@ int main(int argc, char *argv[])
 		    (ts2.tv_usec - ts1.tv_usec);
 		slp_us = 1000000 * (ts3.tv_sec - ts2.tv_sec) +
 		    (ts3.tv_usec - ts2.tv_usec);
+		ld_us = 1000000 * (tsb.tv_sec - tsa.tv_sec) +
+		    (tsb.tv_usec - tsa.tv_usec);
 		read_us = 1000000 * (ts4.tv_sec - ts3.tv_sec) +
 		    (ts4.tv_usec - ts3.tv_usec);
 		dur_us = 1000000 * (ts4.tv_sec - ts1.tv_sec) +
@@ -329,7 +332,8 @@ int main(int argc, char *argv[])
 			if (g_debug > 1) {
 				printf("set time  : %.3f s\n", (double)set_us / 1000000);
 				printf("sleep time: %.3f s\n", (double)slp_us / 1000000);
-				printf("read time : %.3f s\n", (double)read_us / 1000000);
+				printf("loadidle time: %.3f s\n", (double)ld_us / 1000000);
+				printf("walkmaps time : %.3f s\n", (double)read_us / 1000000);
 			}
 			printf("dur time  : %.3f s\n", (double)dur_us / 1000000);
 			// assume getpagesize() sized pages:
