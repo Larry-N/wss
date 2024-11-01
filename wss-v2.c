@@ -271,7 +271,7 @@ int main(int argc, char *argv[])
 	pid_t pid;
 	double duration, mbytes;
 	static struct timeval ts1, ts2, ts3, ts4, tsa, tsb;
-	unsigned long long set_us, read_us, dur_us, slp_us, est_us;
+	unsigned long long set_us, read_us, dur_us, slp_us, est_us, ld_us;
 
 	// options
 	if (argc < 3) {
