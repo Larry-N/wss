@@ -265,7 +265,7 @@ int setidlemap()
 	while (write(idlefd, buf, bitmap_size) > 0) {;}
 
 	close(idlefd);
-	free(buf);
+	//free(buf);
 
 	return 0;
 }
