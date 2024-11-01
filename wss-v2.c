@@ -74,7 +74,7 @@
 #endif
 
 // globals
-int g_debug = 3;		// 1 == some, 2 == more, 3 == maximum
+int g_debug = 2;		// 1 == some, 2 == more, 3 == maximum
 int g_activepages = 0;
 int g_walkedpages = 0;
 int print_virtual_address = 0;
@@ -319,8 +319,8 @@ int main(int argc, char *argv[])
 		// calculate times
 		set_us = 1000000 * (ts2.tv_sec - ts1.tv_sec) +
 		    (ts2.tv_usec - ts1.tv_usec);
-		slp_us = 1000000 * (ts3.tv_sec - ts2.tv_sec) +
-		    (ts3.tv_usec - ts2.tv_usec);
+		slp_us = 1000000 * (tsa.tv_sec - ts2.tv_sec) +
+		    (tsa.tv_usec - ts2.tv_usec);
 		ld_us = 1000000 * (tsb.tv_sec - tsa.tv_sec) +
 		    (tsb.tv_usec - tsa.tv_usec);
 		read_us = 1000000 * (ts4.tv_sec - ts3.tv_sec) +
