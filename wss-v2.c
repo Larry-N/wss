@@ -50,6 +50,7 @@
 #include <sys/stat.h>
 #include <sys/sysinfo.h>
 #include <sys/mman.h>
+#include <string.h>
 #include <sys/time.h>
 #include <fcntl.h>
 #include <signal.h>
