@@ -253,18 +253,19 @@ int setidlemap()
 	char *p;
 	unsigned long bitmap_size, written;
 	static struct timeval ts1, ts2;
-	int idlefd, i;
+	int i;
+	FILE *idlefd;
 	// optimized: large writes allowed here:
 	char *buf = create_and_initialize_bitmap(&bitmap_size);
 
 	// set entire idlemap flags
-	if ((idlefd = open(g_idlepath, O_WRONLY)) < 0) {
+	if ((idlefd = fopen(g_idlepath, "wb")) < 0) {
 		perror("Can't write idlemap file");
 		exit(2);
 	}
 	gettimeofday(&ts1, NULL);
 	// only sets user memory bits; kernel is silently ignored 
-	written = write(idlefd, buf, bitmap_size);
+	written = fwrite(buf, sizeof(char), bitmap_size, idlefd);
 	if (written != bitmap_size) {
 		printf("Write something wrong written: %lld", written);
 	}
