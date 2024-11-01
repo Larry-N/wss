@@ -251,7 +251,7 @@ char* create_and_initialize_bitmap(unsigned long *bs) {
 int setidlemap()
 {
 	char *p;
-	unsigned long bitmap_size;
+	unsigned long bitmap_size, written;
 	static struct timeval ts1, ts2;
 	int idlefd, i;
 	// optimized: large writes allowed here:
@@ -263,8 +263,11 @@ int setidlemap()
 		exit(2);
 	}
 	gettimeofday(&ts1, NULL);
-	// only sets user memory bits; kernel is silently ignored
-	while (write(idlefd, buf, bitmap_size) > 0) {;}
+	// only sets user memory bits; kernel is silently ignored 
+	written = write(idlefd, buf, bitmap_size);
+	if (written != bitmap_size) {
+		printf("Write something wrong written: %lld", written);
+	}
 	gettimeofday(&ts2, NULL);
 
 	unsigned long long st = 1000000 * (ts2.tv_sec - ts1.tv_sec) + (ts2.tv_usec - ts1.tv_usec);
