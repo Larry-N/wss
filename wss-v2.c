@@ -74,7 +74,7 @@
 #endif
 
 // globals
-int g_debug = 1;		// 1 == some, 2 == more, 3 == maximum
+int g_debug = 3;		// 1 == some, 2 == more, 3 == maximum
 int g_activepages = 0;
 int g_walkedpages = 0;
 int print_virtual_address = 0;
