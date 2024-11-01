@@ -274,7 +274,7 @@ int setidlemap()
 	unsigned long long st = 1000000 * (ts2.tv_sec - ts1.tv_sec) + (ts2.tv_usec - ts1.tv_usec);
 	printf("write time  : %.3f s\n", (double)st / 1000000);
 
-	close(idlefd);
+	fclose(idlefd);
 	//free(buf);
 
 	return 0;
