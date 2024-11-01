@@ -252,6 +252,7 @@ int setidlemap()
 {
 	char *p;
 	unsigned long bitmap_size;
+	static struct timeval ts1, ts2;
 	int idlefd, i;
 	// optimized: large writes allowed here:
 	char *buf = create_and_initialize_bitmap(&bitmap_size);
@@ -261,8 +262,13 @@ int setidlemap()
 		perror("Can't write idlemap file");
 		exit(2);
 	}
+	gettimeofday(&ts1, NULL);
 	// only sets user memory bits; kernel is silently ignored
 	while (write(idlefd, buf, bitmap_size) > 0) {;}
+	gettimeofday(&ts2, NULL);
+
+	unsigned long long st = 1000000 * (ts2.tv_sec - ts1.tv_sec) + (ts2.tv_usec - ts1.tv_usec);
+	printf("write time  : %.3f s\n", (double)st / 1000000);
 
 	close(idlefd);
 	//free(buf);
