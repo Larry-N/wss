@@ -211,7 +211,7 @@ int walkmaps(pid_t pid)
 	return 0;
 }
 
-char* create_and_initialize_bitmap() {
+char* create_and_initialize_bitmap(unsigned long *bs) {
     // Get total physical memory in bytes
     struct sysinfo info;
     if (sysinfo(&info) != 0) {
@@ -232,6 +232,7 @@ char* create_and_initialize_bitmap() {
 
     // Calculate the size of the bitmap array (1 bit per page, so divide by 8 for bytes)
     unsigned long bitmap_size = (num_physical_pages + 7) / 8; // Round up for non-multiples of 8
+	*(bs) = bitmap_size;
 
     // Use mmap to allocate memory and initialize it to 0xFF
     char *bitmap = mmap(NULL, bitmap_size, PROT_READ | PROT_WRITE,
@@ -244,20 +245,16 @@ char* create_and_initialize_bitmap() {
     // Initialize the bitmap to 0xFF
     memset(bitmap, 0xFF, bitmap_size);
 
-    printf("Total memory: %lu bytes\n", total_memory);
-    printf("Page size: %ld bytes\n", page_size);
-    printf("Number of physical pages: %lu\n", num_physical_pages);
-    printf("Bitmap size: %lu bytes\n", bitmap_size);
-
     return bitmap;
 }
 
 int setidlemap()
 {
 	char *p;
+	unsigned long bitmap_size;
 	int idlefd, i;
 	// optimized: large writes allowed here:
-	char *buf = create_and_initialize_bitmap();
+	char *buf = create_and_initialize_bitmap(&bitmap_size);
 
 	// set entire idlemap flags
 	if ((idlefd = open(g_idlepath, O_WRONLY)) < 0) {
@@ -265,9 +262,10 @@ int setidlemap()
 		exit(2);
 	}
 	// only sets user memory bits; kernel is silently ignored
-	while (write(idlefd, &buf, sizeof(buf)) > 0) {;}
+	while (write(idlefd, buf, bitmap_size) > 0) {;}
 
 	close(idlefd);
+	free(buf);
 
 	return 0;
 }
