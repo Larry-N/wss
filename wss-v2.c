@@ -301,6 +301,7 @@ int main(int argc, char *argv[])
 	if (duration == 0){
 	// set up signal handler and wait for it 
 		printf("Watching PID %d page references untill SIGUSR1 signal arrives.\n", pid);
+		fflush(stdout);
 		signal(SIGUSR1, signal_handler);
 		pause();
 	} else {
