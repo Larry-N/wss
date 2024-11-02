@@ -48,9 +48,6 @@
 #include <sys/user.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#include <sys/sysinfo.h>
-#include <sys/mman.h>
-#include <string.h>
 #include <sys/time.h>
 #include <fcntl.h>
 #include <signal.h>
@@ -77,7 +74,7 @@
 #endif
 
 // globals
-int g_debug = 2;		// 1 == some, 2 == more, 3 == maximum
+int g_debug = 1;		// 1 == some, 2 == more, 3 == maximum
 int g_activepages = 0;
 int g_walkedpages = 0;
 int print_virtual_address = 0;
@@ -211,71 +208,25 @@ int walkmaps(pid_t pid)
 	return 0;
 }
 
-char* create_and_initialize_bitmap(unsigned long *bs) {
-    // Get total physical memory in bytes
-    struct sysinfo info;
-    if (sysinfo(&info) != 0) {
-        perror("sysinfo");
-        return NULL;
-    }
-    unsigned long total_memory = info.totalram;
-
-    // Get the page size
-    long page_size = sysconf(_SC_PAGESIZE);
-    if (page_size == -1) {
-        perror("sysconf");
-        return NULL;
-    }
-
-    // Calculate the number of physical pages
-    unsigned long num_physical_pages = total_memory / page_size;
-
-    // Calculate the size of the bitmap array (1 bit per page, so divide by 8 for bytes)
-    unsigned long bitmap_size = (num_physical_pages + 7) / 8; // Round up for non-multiples of 8
-	*(bs) = bitmap_size;
-
-    // Use mmap to allocate memory and initialize it to 0xFF
-    char *bitmap = mmap(NULL, bitmap_size, PROT_READ | PROT_WRITE,
-                        MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (bitmap == MAP_FAILED) {
-        perror("mmap");
-        return NULL;
-    }
-
-    // Initialize the bitmap to 0xFF
-    memset(bitmap, 0xFF, bitmap_size);
-
-    return bitmap;
-}
-
 int setidlemap()
 {
 	char *p;
-	unsigned long bitmap_size, written;
-	static struct timeval ts1, ts2;
-	int i;
-	FILE *idlefd;
+	int idlefd, i;
 	// optimized: large writes allowed here:
-	char *buf = create_and_initialize_bitmap(&bitmap_size);
+	char buf[IDLEMAP_BUF_SIZE];
+
+	for (i = 0; i < sizeof (buf); i++)
+		buf[i] = 0xff;
 
 	// set entire idlemap flags
-	if ((idlefd = fopen(g_idlepath, "wb")) < 0) {
+	if ((idlefd = open(g_idlepath, O_WRONLY)) < 0) {
 		perror("Can't write idlemap file");
 		exit(2);
 	}
-	gettimeofday(&ts1, NULL);
-	// only sets user memory bits; kernel is silently ignored 
-	written = fwrite(buf, sizeof(char), bitmap_size, idlefd);
-	if (written != bitmap_size) {
-		printf("Write something wrong written: %lld", written);
-	}
-	gettimeofday(&ts2, NULL);
+	// only sets user memory bits; kernel is silently ignored
+	while (write(idlefd, &buf, sizeof(buf)) > 0) {;}
 
-	unsigned long long st = 1000000 * (ts2.tv_sec - ts1.tv_sec) + (ts2.tv_usec - ts1.tv_usec);
-	printf("write time  : %.3f s\n", (double)st / 1000000);
-
-	fclose(idlefd);
-	//free(buf);
+	close(idlefd);
 
 	return 0;
 }
@@ -319,8 +270,8 @@ int main(int argc, char *argv[])
 {
 	pid_t pid;
 	double duration, mbytes;
-	static struct timeval ts1, ts2, ts3, ts4, tsa, tsb;
-	unsigned long long set_us, read_us, dur_us, slp_us, est_us, ld_us;
+	static struct timeval ts1, ts2, ts3, ts4;
+	unsigned long long set_us, read_us, dur_us, slp_us, est_us;
 
 	// options
 	if (argc < 3) {
@@ -356,11 +307,10 @@ int main(int argc, char *argv[])
 		usleep((int)(duration * 1000000));
 	}
 
-	// read idle flags
-	gettimeofday(&tsa, NULL);
-	loadidlemap();
-	gettimeofday(&tsb, NULL);
 	gettimeofday(&ts3, NULL);
+
+	// read idle flags
+	loadidlemap();
 	walkmaps(pid);
 	gettimeofday(&ts4, NULL);
 
@@ -368,10 +318,8 @@ int main(int argc, char *argv[])
 		// calculate times
 		set_us = 1000000 * (ts2.tv_sec - ts1.tv_sec) +
 		    (ts2.tv_usec - ts1.tv_usec);
-		slp_us = 1000000 * (tsa.tv_sec - ts2.tv_sec) +
-		    (tsa.tv_usec - ts2.tv_usec);
-		ld_us = 1000000 * (tsb.tv_sec - tsa.tv_sec) +
-		    (tsb.tv_usec - tsa.tv_usec);
+		slp_us = 1000000 * (ts3.tv_sec - ts2.tv_sec) +
+		    (ts3.tv_usec - ts2.tv_usec);
 		read_us = 1000000 * (ts4.tv_sec - ts3.tv_sec) +
 		    (ts4.tv_usec - ts3.tv_usec);
 		dur_us = 1000000 * (ts4.tv_sec - ts1.tv_sec) +
@@ -381,8 +329,7 @@ int main(int argc, char *argv[])
 			if (g_debug > 1) {
 				printf("set time  : %.3f s\n", (double)set_us / 1000000);
 				printf("sleep time: %.3f s\n", (double)slp_us / 1000000);
-				printf("loadidle time: %.3f s\n", (double)ld_us / 1000000);
-				printf("walkmaps time : %.3f s\n", (double)read_us / 1000000);
+				printf("read time : %.3f s\n", (double)read_us / 1000000);
 			}
 			printf("dur time  : %.3f s\n", (double)dur_us / 1000000);
 			// assume getpagesize() sized pages:
