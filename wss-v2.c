@@ -284,8 +284,7 @@ int main(int argc, char *argv[])
 		print_virtual_address = 1;
 	}
 	if (duration == 0.0) {
-		printf("Watching PID %d page references untill SIGUSR1 signal arrives.\n",
-			pid);
+		//printf("Watching PID %d page references untill SIGUSR1 signal arrives.\n", pid);
 	} else if (duration < 0.01) {
 		printf("Interval too short. Exiting.\n");
 		return 1;
@@ -301,6 +300,7 @@ int main(int argc, char *argv[])
 	gettimeofday(&ts2, NULL);
 	if (duration == 0){
 	// set up signal handler and wait for it 
+		printf("Watching PID %d page references untill SIGUSR1 signal arrives.\n", pid);
 		signal(SIGUSR1, signal_handler);
 		pause();
 	} else {
