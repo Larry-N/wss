@@ -123,8 +123,8 @@ int loadkpageflags(int start_pfn)
 		goto exit;
     }
 
-	int g_pfn_start = start_pfn;
-	int g_pfn_end = start_pfn + 1024;
+	g_pfn_start = start_pfn;
+	g_pfn_end = start_pfn + 1024;
 exit:	
 	close(kpageflagsfd);
 	return retval;
