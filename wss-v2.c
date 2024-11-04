@@ -83,7 +83,7 @@ char *g_idlepath = "/sys/kernel/mm/page_idle/bitmap";
 unsigned long long *g_idlebuf;
 unsigned long long g_idlebufsize;
 
-char *g_kpflags = "/proc/kpageflags"
+char *g_kpflags = "/proc/kpageflags";
 unsigned long long *g_kpageflagsbuf;
 #define KPAGEFLAG_BUF_SIZE 8192 // enough for 1024 PFN
 int g_pfn_start = 0;
