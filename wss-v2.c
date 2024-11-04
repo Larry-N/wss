@@ -91,7 +91,6 @@ int g_pfn_end = 0;
 
 int loadkpageflags(int start_pfn)
 {
-	int kpageflagsfd;
 
 	if ((g_kpageflagsbuf == NULL)) {
 		if ((g_kpageflagsbuf = malloc(KPAGEFLAG_BUF_SIZE)) == NULL) {
@@ -100,13 +99,13 @@ int loadkpageflags(int start_pfn)
 		}
 	}
 
-    int kpageflagsfd = open(PAGE_FLAG_FILE, O_RDONLY);
+    int kpageflagsfd = open(g_kpflags, O_RDONLY);
     if (kpageflagsfd < 0) {
         perror("Failed to open /proc/kpageflags");
         exit(1);
     }
 
-	off_t offset = start_pfn * sizeof(uint64_t);
+	off_t offset = start_pfn * BITMAP_CHUNK_SIZE;
     if (lseek(kpageflagsfd, offset, SEEK_SET) == (off_t) -1) {
         perror("Failed to seek to starting PFN in /proc/kpageflags");
         exit(1);
