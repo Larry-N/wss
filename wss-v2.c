@@ -91,50 +91,59 @@ int g_pfn_end = 0;
 
 int loadkpageflags(int start_pfn)
 {
+	int retval = 0;
 
 	if ((g_kpageflagsbuf == NULL)) {
 		if ((g_kpageflagsbuf = malloc(KPAGEFLAG_BUF_SIZE)) == NULL) {
 			printf("Can't allocate memory for kpageflags buf (%d bytes)", KPAGEFLAG_BUF_SIZE);
-			exit(1);
+			retval = -1;
+			goto exit;
 		}
 	}
 
     int kpageflagsfd = open(g_kpflags, O_RDONLY);
     if (kpageflagsfd < 0) {
         perror("Failed to open /proc/kpageflags");
-        exit(1);
+        retval = -2;
+		goto exit;
     }
 
 	off_t offset = start_pfn * BITMAP_CHUNK_SIZE;
     if (lseek(kpageflagsfd, offset, SEEK_SET) == (off_t) -1) {
         perror("Failed to seek to starting PFN in /proc/kpageflags");
-        exit(1);
+        retval = -3;
+		goto exit;
     }
 
 	ssize_t bytes_to_read = 1024 * BITMAP_CHUNK_SIZE;
 	ssize_t bytes_read = read(kpageflagsfd, g_kpageflagsbuf, bytes_to_read);
     if (bytes_read < 0) {
         perror("Failed to read page flags");
-		exit(1);
+		retval = -4;
+		goto exit;
     }
 
 	int g_pfn_start = start_pfn;
 	int g_pfn_end = start_pfn + 1024;
+exit:	
 	close(kpageflagsfd);
-	return 0;
+	return retval;
 }
 
 
 int readkpageflags(int pfn)
 {
-	//IDLE page has not been accessed since it was marked idle (see Documentation/vm/idle_page_tracking.txt)
+	int retval = 0;
+	//IDLE: page has not been accessed since it was marked idle (see Documentation/vm/idle_page_tracking.txt)
 	if ((pfn < g_pfn_start) || (pfn > g_pfn_end)) {
-		loadkpageflags(pfn);
+		if (retval = loadkpageflags(pfn) < 0) {
+			return retval;
+		}
 	}
 	off_t offset = (g_pfn_end - pfn) * BITMAP_CHUNK_SIZE;
-	int is_idle = (g_kpageflagsbuf[offset] & IDLE_BIT) ? 1 : 0;
+	retval = (g_kpageflagsbuf[offset] & IDLE_BIT) ? 1 : 0;
 
-	return is_idle;
+	return retval;
 }
 
 
@@ -204,12 +213,20 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 		// read idle bit
 		idlemapp = (pfn / 64) * BITMAP_CHUNK_SIZE;
 		if (idlemapp > g_idlebufsize) {
-			if (!readkpageflags(pfn)) {
-				goto out_ok;
+			int idlebit = readkpageflags(pfn);
+			if (idlebit < 0) {
+				printf("ERROR: bad PFN read from page map.\n");
+				err = 1;
+				goto out;
+			} else if (idlebit == 0) {
+				g_activepages++;
+				if (print_virtual_address) {
+					printf("%llx\n", mapstart + i*pagesize);
+				}
+		
 			}
-			//printf("ERROR: bad PFN read from page map.\n");
-			//err = 1;
-			goto out;
+			g_walkedpages++;
+			continue;
 		}
 		idlebits = g_idlebuf[idlemapp];
 		if (g_debug > 2) {
@@ -218,7 +235,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 		}
 
 		if (!(idlebits & (1ULL << (pfn % 64)))) {
-out_ok:		g_activepages++;
+		g_activepages++;
 			if (print_virtual_address) {
 				printf("%llx\n", mapstart + i*pagesize);
 			}
