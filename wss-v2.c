@@ -89,6 +89,56 @@ unsigned long long *g_kpageflagsbuf;
 int g_pfn_start = 0;
 int g_pfn_end = 0;
 
+int loadkpageflags(int start_pfn)
+{
+	int kpageflagsfd;
+
+	if ((g_kpageflagsbuf == NULL) {
+		if ((g_kpageflagsbuf = malloc(KPAGEFLAG_BUF_SIZE)) == NULL) {
+			printf("Can't allocate memory for kpageflags buf (%d bytes)", KPAGEFLAG_BUF_SIZE);
+			exit(1);
+		}
+	}
+
+    int kpageflagsfd = open(PAGE_FLAG_FILE, O_RDONLY);
+    if (kpageflagsfd < 0) {
+        perror("Failed to open /proc/kpageflags");
+        exit(1);
+    }
+
+	off_t offset = start_pfn * sizeof(uint64_t);
+    if (lseek(kpageflagsfd, offset, SEEK_SET) == (off_t) -1) {
+        perror("Failed to seek to starting PFN in /proc/kpageflags");
+        exit(1);
+    }
+
+	ssize_t bytes_to_read = 1024 * sizeof(uint64_t);
+	ssize_t bytes_read = read(kpageflagsfd, g_kpageflagsbuf, bytes_to_read);
+    if (bytes_read < 0) {
+        perror("Failed to read page flags");
+		exit(1);
+    }
+
+	int g_pfn_start = start_pfn;
+	int g_pfn_end = start_pfn + 1024;
+	close(kpageflagsfd);
+	return 0;
+}
+
+
+int readkpageflags(int pfn)
+{
+	//IDLE page has not been accessed since it was marked idle (see Documentation/vm/idle_page_tracking.txt)
+	if ((pfn < g_pfn_start) || (pfn > g_pfn_end)) {
+		loadkpageflags();
+	}
+	off_t offset = (g_pfn_end - pfn) * sizeof(uint64_t);
+	int is_idle = (g_kpageflagsbuf[offset] & IDLE_BIT) ? 1 : 0;
+
+	return is_idle;
+}
+
+
 /*
  * This code must operate on bits in the pageidle bitmap and process pagemap.
  * Doing this one by one via syscall read/write on a large process can take too
@@ -269,54 +319,6 @@ int loadidlemap()
 	return 0;
 }
 
-
-int loadkpageflags(int start_pfn)
-{
-	int kpageflagsfd;
-
-	if ((g_kpageflagsbuf == NULL) {
-		if ((g_kpageflagsbuf = malloc(KPAGEFLAG_BUF_SIZE)) == NULL) {
-			printf("Can't allocate memory for kpageflags buf (%d bytes)", KPAGEFLAG_BUF_SIZE);
-			exit(1);
-		}
-	}
-
-    int kpageflagsfd = open(PAGE_FLAG_FILE, O_RDONLY);
-    if (kpageflagsfd < 0) {
-        perror("Failed to open /proc/kpageflags");
-        exit(1);
-    }
-
-	off_t offset = start_pfn * sizeof(uint64_t);
-    if (lseek(kpageflagsfd, offset, SEEK_SET) == (off_t) -1) {
-        perror("Failed to seek to starting PFN in /proc/kpageflags");
-        exit(1);
-    }
-
-	ssize_t bytes_to_read = 1024 * sizeof(uint64_t);
-	ssize_t bytes_read = read(kpageflagsfd, g_kpageflagsbuf, bytes_to_read);
-    if (bytes_read < 0) {
-        perror("Failed to read page flags");
-		exit(1);
-    }
-
-	int g_pfn_start = start_pfn;
-	int g_pfn_end = start_pfn + 1024;
-	close(kpageflagsfd);
-	return 0;
-}
-
-int readkpageflags(int pfn)
-{
-	//IDLE page has not been accessed since it was marked idle (see Documentation/vm/idle_page_tracking.txt)
-	if ((pfn < g_pfn_start) || (pfn > g_pfn_end)) {
-		loadkpageflags();
-	}
-	off_t offset = (g_pfn_end - pfn) * sizeof(uint64_t);
-	int is_idle = (g_kpageflagsbuf[offset] & IDLE_BIT) ? 1 : 0;
-
-	return is_idle;
-}
 
 
 void signal_handler(int signum) {
