@@ -212,7 +212,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 
 		// read idle bit
 		idlemapp = (pfn / 64) * BITMAP_CHUNK_SIZE;
-		if (idlemapp > g_idlebufsize) {
+		//@testif (idlemapp > g_idlebufsize) {
 			int idlebit = readkpageflags(pfn);
 			if (idlebit < 0) {
 				printf("ERROR: bad PFN read from page map.\n");
@@ -227,7 +227,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 			}
 			g_walkedpages++;
 			continue;
-		}
+		//@test}
 		idlebits = g_idlebuf[idlemapp];
 		if (g_debug > 2) {
 			printf("R: p %llx pfn %llx idlebits %llx\n",
