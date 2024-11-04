@@ -93,7 +93,7 @@ int loadkpageflags(int start_pfn)
 {
 	int kpageflagsfd;
 
-	if ((g_kpageflagsbuf == NULL) {
+	if ((g_kpageflagsbuf == NULL)) {
 		if ((g_kpageflagsbuf = malloc(KPAGEFLAG_BUF_SIZE)) == NULL) {
 			printf("Can't allocate memory for kpageflags buf (%d bytes)", KPAGEFLAG_BUF_SIZE);
 			exit(1);
@@ -112,7 +112,7 @@ int loadkpageflags(int start_pfn)
         exit(1);
     }
 
-	ssize_t bytes_to_read = 1024 * sizeof(uint64_t);
+	ssize_t bytes_to_read = 1024 * BITMAP_CHUNK_SIZE;
 	ssize_t bytes_read = read(kpageflagsfd, g_kpageflagsbuf, bytes_to_read);
     if (bytes_read < 0) {
         perror("Failed to read page flags");
@@ -130,9 +130,9 @@ int readkpageflags(int pfn)
 {
 	//IDLE page has not been accessed since it was marked idle (see Documentation/vm/idle_page_tracking.txt)
 	if ((pfn < g_pfn_start) || (pfn > g_pfn_end)) {
-		loadkpageflags();
+		loadkpageflags(pfn);
 	}
-	off_t offset = (g_pfn_end - pfn) * sizeof(uint64_t);
+	off_t offset = (g_pfn_end - pfn) * BITMAP_CHUNK_SIZE;
 	int is_idle = (g_kpageflagsbuf[offset] & IDLE_BIT) ? 1 : 0;
 
 	return is_idle;
