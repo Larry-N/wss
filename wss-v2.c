@@ -54,6 +54,7 @@
 
 // see Documentation/vm/pagemap.txt:
 #define PFN_MASK		(~(0x1ffLLU << 55))
+#define IDLE_BIT 		(1UL << 25)
 
 #define PATHSIZE		128
 #define LINESIZE		256
@@ -81,6 +82,12 @@ int print_virtual_address = 0;
 char *g_idlepath = "/sys/kernel/mm/page_idle/bitmap";
 unsigned long long *g_idlebuf;
 unsigned long long g_idlebufsize;
+
+char *g_kpflags = "/proc/kpageflags"
+unsigned long long *g_kpageflagsbuf;
+#define KPAGEFLAG_BUF_SIZE 8192 // enough for 1024 PFN
+int g_pfn_start = 0;
+int g_pfn_end = 0;
 
 /*
  * This code must operate on bits in the pageidle bitmap and process pagemap.
@@ -148,8 +155,11 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 		// read idle bit
 		idlemapp = (pfn / 64) * BITMAP_CHUNK_SIZE;
 		if (idlemapp > g_idlebufsize) {
-			printf("ERROR: bad PFN read from page map.\n");
-			err = 1;
+			if (!readkpageflags(pfn)) {
+				goto out_ok;
+			}
+			//printf("ERROR: bad PFN read from page map.\n");
+			//err = 1;
 			goto out;
 		}
 		idlebits = g_idlebuf[idlemapp];
@@ -159,7 +169,7 @@ int mapidle(pid_t pid, unsigned long long mapstart, unsigned long long mapend)
 		}
 
 		if (!(idlebits & (1ULL << (pfn % 64)))) {
-			g_activepages++;
+out_ok:		g_activepages++;
 			if (print_virtual_address) {
 				printf("%llx\n", mapstart + i*pagesize);
 			}
@@ -257,6 +267,55 @@ int loadidlemap()
 	close(idlefd);
 
 	return 0;
+}
+
+
+int loadkpageflags(int start_pfn)
+{
+	int kpageflagsfd;
+
+	if ((g_kpageflagsbuf == NULL) {
+		if ((g_kpageflagsbuf = malloc(KPAGEFLAG_BUF_SIZE)) == NULL) {
+			printf("Can't allocate memory for kpageflags buf (%d bytes)", KPAGEFLAG_BUF_SIZE);
+			exit(1);
+		}
+	}
+
+    int kpageflagsfd = open(PAGE_FLAG_FILE, O_RDONLY);
+    if (kpageflagsfd < 0) {
+        perror("Failed to open /proc/kpageflags");
+        exit(1);
+    }
+
+	off_t offset = start_pfn * sizeof(uint64_t);
+    if (lseek(kpageflagsfd, offset, SEEK_SET) == (off_t) -1) {
+        perror("Failed to seek to starting PFN in /proc/kpageflags");
+        exit(1);
+    }
+
+	ssize_t bytes_to_read = 1024 * sizeof(uint64_t);
+	ssize_t bytes_read = read(kpageflagsfd, g_kpageflagsbuf, bytes_to_read);
+    if (bytes_read < 0) {
+        perror("Failed to read page flags");
+		exit(1);
+    }
+
+	int g_pfn_start = start_pfn;
+	int g_pfn_end = start_pfn + 1024;
+	close(kpageflagsfd);
+	return 0;
+}
+
+int readkpageflags(int pfn)
+{
+	//IDLE page has not been accessed since it was marked idle (see Documentation/vm/idle_page_tracking.txt)
+	if ((pfn < g_pfn_start) || (pfn > g_pfn_end)) {
+		loadkpageflags();
+	}
+	off_t offset = (g_pfn_end - pfn) * sizeof(uint64_t);
+	int is_idle = (g_kpageflagsbuf[offset] & IDLE_BIT) ? 1 : 0;
+
+	return is_idle;
 }
 
 
