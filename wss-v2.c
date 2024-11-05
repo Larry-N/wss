@@ -352,13 +352,29 @@ int main(int argc, char *argv[])
 
 	// options
 	if (argc < 3) {
-		printf("USAGE: wss PID duration(s) return_virt_address(y optional)\n");
+		printf("USAGE: wss PID duration(s) (optional 'y' for redirect output and virtual addresses pages to a file)\n");
 		exit(0);
 	}	
 	pid = atoi(argv[1]);
 	duration = atof(argv[2]);
 	if (argc == 4) {
 		print_virtual_address = 1;
+		int log_fd = open("workingset_log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+    	if (log_fd == -1) {
+        	perror("Failed to open log file");
+        	exit(2);
+    	}
+    	// Redirect stderr and stdout to the log file
+    	if (dup2(log_fd, STDERR_FILENO) == -1) {
+    	    perror("Failed to redirect stderr");
+    	    close(log_fd);
+    	    exit(2);
+    	}
+    	if (dup2(log_fd, STDOUT_FILENO) == -1) {
+    	    perror("Failed to redirect stdout");
+    	    close(log_fd);
+    	    exit(2);
+    	}
 	}
 	if (duration == 0.0) {
 		//printf("Watching PID %d page references untill SIGUSR1 signal arrives.\n", pid);
