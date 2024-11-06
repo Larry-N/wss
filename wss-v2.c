@@ -359,7 +359,7 @@ int main(int argc, char *argv[])
 	duration = atof(argv[2]);
 	if (argc == 4) {
 		print_virtual_address = 1;
-		int log_fd = open("workingset_log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
+		int log_fd = open("/tmp/workingset_log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
     	if (log_fd == -1) {
         	perror("Failed to open log file");
         	exit(3);
