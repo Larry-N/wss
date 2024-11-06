@@ -362,18 +362,18 @@ int main(int argc, char *argv[])
 		int log_fd = open("workingset_log", O_WRONLY | O_CREAT | O_TRUNC, 0644);
     	if (log_fd == -1) {
         	perror("Failed to open log file");
-        	exit(2);
+        	exit(3);
     	}
     	// Redirect stderr and stdout to the log file
     	if (dup2(log_fd, STDERR_FILENO) == -1) {
     	    perror("Failed to redirect stderr");
     	    close(log_fd);
-    	    exit(2);
+    	    exit(4);
     	}
     	if (dup2(log_fd, STDOUT_FILENO) == -1) {
     	    perror("Failed to redirect stdout");
     	    close(log_fd);
-    	    exit(2);
+    	    exit(5);
     	}
 	}
 	if (duration == 0.0) {
